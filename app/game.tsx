@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Dimensions, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -57,6 +57,8 @@ const WordRainGame = () => {
   const [missedWords, setMissedWords] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  // const [countdown, setCountdown] = useState(3);
+  // const [showCountdown, setShowCountdown] = useState(true);
   const [gameAreaHeight, setGameAreaHeight] = useState(SCREEN_HEIGHT - 200);
   const nextWordId = useRef(0);
   const nextParticleId = useRef(0);
@@ -78,13 +80,15 @@ const WordRainGame = () => {
   });
 
   const startGame = () => {
-    setGameStarted(true);
+    setGameStarted(true); // Start immediately
     setGameOver(false);
     setScore(0);
     setMissedWords(0);
     setWords([]);
     setParticles([]);
     setCurrentInput('');
+    // setShowCountdown(true);
+    // setCountdown(3);
     nextWordId.current = 0;
     nextParticleId.current = 0;
     timeRef.current = Date.now();
@@ -95,11 +99,29 @@ const WordRainGame = () => {
     }, 100);
   };
 
+  // Countdown effect on mount and when restarting
+  // useEffect(() => {
+  //   if (showCountdown && countdown > 0) {
+  //     const timer = setTimeout(() => {
+  //       setCountdown(countdown - 1);
+  //     }, 1000);
+  //     return () => clearTimeout(timer);
+  //   } else if (showCountdown && countdown === 0) {
+  //     setShowCountdown(false);
+  //     setGameStarted(true); // Only start game after countdown
+  //   }
+  // }, [countdown, showCountdown]);
+
+  // Auto-start game on mount
+  useEffect(() => {
+    startGame();
+  }, []);
+
   const spawnWord = useCallback(() => {
     const randomWord = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
     const wordWidth = randomWord.length * 14 + 32;
     const randomX = Math.random() * (SCREEN_WIDTH - wordWidth - 20) + 10;
-    
+
     const newWord: FallingWord = {
       id: nextWordId.current++,
       text: randomWord,
@@ -107,7 +129,7 @@ const WordRainGame = () => {
       y: -WORD_HEIGHT,
       matched: false,
       spawnTime: Date.now(),
-      fallDuration: FALL_DURATION + Math.random() * 2500, //[6s - 8.5s]
+      fallDuration: FALL_DURATION + Math.random() * 3000, //[6s - 9s]
     };
 
     setWords(prev => [...prev, newWord]);
@@ -115,7 +137,7 @@ const WordRainGame = () => {
 
   const removeWord = useCallback((wordId: number, wasMatched: boolean) => {
     setWords(prev => prev.filter(word => word.id !== wordId));
-    
+
     if (!wasMatched) {
       setMissedWords(prev => {
         const newMissedCount = prev + 1;
@@ -132,7 +154,7 @@ const WordRainGame = () => {
             spawnTimerRef.current = null;
           }
         }
-        
+
         return newMissedCount;
       });
     }
@@ -141,11 +163,11 @@ const WordRainGame = () => {
   const createParticles = (x: number, y: number, particleCount: number) => {
     const newParticles: Particle[] = [];
     const colors = ['#00d9ff', '#9b59b6', '#ffd700', '#00ffff', '#ff6b00'];
-    
+
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 * i) / particleCount;
       const velocity = 2 + Math.random() * 3;
-      
+
       newParticles.push({
         id: nextParticleId.current++,
         x,
@@ -156,7 +178,7 @@ const WordRainGame = () => {
         color: colors[Math.floor(Math.random() * colors.length)],
       });
     }
-    
+
     setParticles(prev => [...prev, ...newParticles]);
   };
 
@@ -174,10 +196,10 @@ const WordRainGame = () => {
       const elapsedTime = now - matchedWord.spawnTime;
       const progress = Math.min(elapsedTime / matchedWord.fallDuration, 1);
       const currentY = Math.max(-WORD_HEIGHT, progress * (gameAreaHeight - WORD_HEIGHT));
-      
+
       // Create particle explosion at word's current position
       createParticles(matchedWord.x + 50, currentY + 20, matchedWord.text?.length * 4);
-      
+
       // Store the current Y position in the matched word so it freezes there
       setWords(prev =>
         prev.map(word =>
@@ -186,7 +208,7 @@ const WordRainGame = () => {
       );
       setScore(prev => prev + matchedWord.text.length * 10);
       setCurrentInput('');
-      
+
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       setTimeout(() => {
@@ -199,11 +221,21 @@ const WordRainGame = () => {
   useEffect(() => {
     if (gameStarted && !gameOver) {
       spawnWord();
-      spawnTimerRef.current = setInterval(spawnWord, SPAWN_INTERVAL + Math.random() * SPAWN_INTERVAL);
+      spawnTimerRef.current = setInterval(spawnWord, SPAWN_INTERVAL);
+      // const spawnWordsWithRandomInterval = () => {
+      //   const interval = SPAWN_INTERVAL + Math.random() * SPAWN_INTERVAL;
+      //   spawnTimerRef.current = setTimeout(() => {
+      //     spawnWord();
+      //     spawnWordsWithRandomInterval();
+      //   }, interval);
+      // };
+
+      // spawnWordsWithRandomInterval();
 
       return () => {
         if (spawnTimerRef.current) {
           clearInterval(spawnTimerRef.current);
+          // clearTimeout(spawnTimerRef.current);
           spawnTimerRef.current = null;
         }
       };
@@ -215,7 +247,7 @@ const WordRainGame = () => {
     if (gameStarted && !gameOver) {
       const animate = () => {
         timeRef.current = Date.now();
-        
+
         // Update particles
         setParticles(prevParticles => {
           return prevParticles
@@ -228,10 +260,10 @@ const WordRainGame = () => {
             }))
             .filter(particle => particle.life > 0);
         });
-        
+
         animationFrameRef.current = requestAnimationFrame(animate);
       };
-      
+
       animationFrameRef.current = requestAnimationFrame(animate);
 
       return () => {
@@ -250,10 +282,10 @@ const WordRainGame = () => {
         setWords(prevWords => {
           const filtered = prevWords.filter(word => {
             if (word.matched || word.reachedBottom) return true;
-            
+
             const elapsedTime = now - word.spawnTime;
             const progress = elapsedTime / word.fallDuration;
-            
+
             if (progress >= 1) {
               removeWord(word.id, false);
               return false;
@@ -281,128 +313,134 @@ const WordRainGame = () => {
   }, [gameOver]);
 
   return (
-    <View style={{ flex: 1, backgroundColor }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
+      <Text style={[styles.floatingText, { top: INSETS.top, left: 20 }]}>{score}</Text>
+      <Text
+        style={[styles.floatingText, styles.missedText, { top: INSETS.top }]}
       >
-        <ThemedView style={styles.container}>
-          {/* Header */}
-          <LinearGradient
-            colors={['#1a0033', '#2d1b4e', '#3d2b5f']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.header, { paddingTop: INSETS.top }]}
-          >
-            <ThemedView style={styles.statContainer}>
-              <ThemedText type="defaultSemiBold" style={{ color: '#ffffff' }}>Score: {score}</ThemedText>
-            </ThemedView>
-            <ThemedView style={styles.statContainer}>
-              <ThemedText 
-                type="defaultSemiBold"
-                style={[styles.missedText, { color: missedWords >= 2 ? '#ff6b6b' : '#ffffff' }]}
-              >
-                Missed: {missedWords}/3
-              </ThemedText>
-            </ThemedView>
-          </LinearGradient>
+        {Array.from({ length: 3 }, (_, i) => {
+          const livesMissed = missedWords;
+          const livesRemaining = 3 - livesMissed;
+          return i < livesRemaining ? '❤️' : '🖤';
+        }).join('')}
+      </Text>
+      <ThemedView style={styles.container}>
 
-          {/* Game Area with Skia Canvas */}
-          <ThemedView 
-            style={styles.gameArea}
-            onLayout={(event) => {
-              const { height } = event.nativeEvent.layout;
-              setGameAreaHeight(height);
-            }}
-          >
-            <Canvas style={{ flex: 1 }}>
-              {/* Background gradient */}
-              <RoundedRect
-                x={0}
-                y={0}
-                width={SCREEN_WIDTH}
-                height={gameAreaHeight}
-                r={0}
-              >
-                <SkiaLinearGradient
-                  start={vec(0, 0)}
-                  end={vec(0, gameAreaHeight)}
-                  colors={['#1a0033', '#2d1349', '#1e3a5f', '#2a5470']}
-                />
-              </RoundedRect>
-              
-              {/* Render particles */}
-              {particles.map(particle => (
-                <Circle
-                  key={particle.id}
-                  cx={particle.x}
-                  cy={particle.y}
-                  r={3 * particle.life}
-                  color={particle.color}
-                  opacity={particle.life}
-                />
-              ))}
 
-              {/* Render falling words with effects */}
-              {words.map(word => {
-                // Calculate word position based on elapsed time (declarative animation)
-                const now = timeRef.current;
-                const elapsedTime = now - word.spawnTime;
-                const progress = Math.min(elapsedTime / word.fallDuration, 1);
-                const wordY = word.matched ? word.y : Math.max(-WORD_HEIGHT, progress * (gameAreaHeight - WORD_HEIGHT));
-                
-                // Calculate shimmer effect
-                const shimmerPos = ((now / 2000) % 1 + (word.id * 0.2)) % 1;
-                
-                // Check for partial match with current input
-                const upperInput = currentInput.trim().toUpperCase();
-                const isPartialMatch = !word.matched && upperInput.length > 0 && word.text.startsWith(upperInput);
-                const matchedLength = isPartialMatch ? upperInput.length : 0;
-                
-                return (
-                  <Group key={word.id}>
-                    {/* Glow effect for matched words */}
-                    {word.matched && (
-                      <RoundedRect
-                        x={word.x - 5}
-                        y={wordY - 5}
-                        width={word.text.length * 14 + 40}
-                        height={50}
-                        r={25}
-                        color="#00ffff"
-                        opacity={0.7}
-                      >
-                        <BlurMask blur={12} style="normal" />
-                      </RoundedRect>
-                    )}
-                    
-                    {/* Highlight glow for partially matched words */}
-                    {isPartialMatch && (
-                      <RoundedRect
-                        x={word.x - 3}
-                        y={wordY - 3}
-                        width={word.text.length * 14 + 38}
-                        height={46}
-                        r={23}
-                        color="#ffd700"
-                        opacity={0.5}
-                      >
-                        <BlurMask blur={10} style="normal" />
-                      </RoundedRect>
-                    )}
-                    
-                    {/* Word shadow */}
+        {/* Game Area with Skia Canvas */}
+        <ThemedView
+          style={styles.gameArea}
+          onLayout={(event) => {
+            const { height } = event.nativeEvent.layout;
+            setGameAreaHeight(height);
+          }}
+        >
+          <Canvas style={{ flex: 1 }}>
+            <RoundedRect
+              x={0}
+              y={0}
+              width={SCREEN_WIDTH}
+              height={gameAreaHeight}
+              r={0}
+            >
+              <SkiaLinearGradient
+                start={vec(0, 0)}
+                end={vec(0, gameAreaHeight)}
+                colors={['#1a0033', '#2d1349', '#1e3a5f', '#2a5470']}
+              />
+            </RoundedRect>
+
+            {/* Render particles */}
+            {particles.map(particle => (
+              <Circle
+                key={particle.id}
+                cx={particle.x}
+                cy={particle.y}
+                r={3 * particle.life}
+                color={particle.color}
+                opacity={particle.life}
+              />
+            ))}
+
+            {/* Render falling words with effects */}
+            {words.map(word => {
+              // Calculate word position based on elapsed time (declarative animation)
+              const now = timeRef.current;
+              const elapsedTime = now - word.spawnTime;
+              const progress = Math.min(elapsedTime / word.fallDuration, 1);
+              const wordY = word.matched ? word.y : Math.max(-WORD_HEIGHT, progress * (gameAreaHeight - WORD_HEIGHT));
+
+              // Calculate shimmer effect
+              const shimmerPos = ((now / 2000) % 1 + (word.id * 0.2)) % 1;
+
+              // Check for partial match with current input
+              const upperInput = currentInput.trim().toUpperCase();
+              const isPartialMatch = !word.matched && upperInput.length > 0 && word.text.startsWith(upperInput);
+              const matchedLength = isPartialMatch ? upperInput.length : 0;
+
+              return (
+                <Group key={word.id}>
+                  {/* Glow effect for matched words */}
+                  {word.matched && (
                     <RoundedRect
-                      x={word.x + 2}
-                      y={wordY + 2}
-                      width={word.text.length * 14 + 32}
-                      height={40}
-                      r={20}
-                      color="#00000080"
+                      x={word.x - 5}
+                      y={wordY - 5}
+                      width={word.text.length * 14 + 40}
+                      height={50}
+                      r={25}
+                      color="#00ffff"
+                      opacity={0.7}
+                    >
+                      <BlurMask blur={12} style="normal" />
+                    </RoundedRect>
+                  )}
+
+                  {/* Highlight glow for partially matched words */}
+                  {isPartialMatch && (
+                    <RoundedRect
+                      x={word.x - 3}
+                      y={wordY - 3}
+                      width={word.text.length * 14 + 38}
+                      height={46}
+                      r={23}
+                      color="#ffd700"
+                      opacity={0.5}
+                    >
+                      <BlurMask blur={10} style="normal" />
+                    </RoundedRect>
+                  )}
+
+                  {/* Word shadow */}
+                  <RoundedRect
+                    x={word.x + 2}
+                    y={wordY + 2}
+                    width={word.text.length * 14 + 32}
+                    height={40}
+                    r={20}
+                    color="#00000080"
+                  />
+
+                  {/* Word background with gradient */}
+                  <RoundedRect
+                    x={word.x}
+                    y={wordY}
+                    width={word.text.length * 14 + 32}
+                    height={40}
+                    r={20}
+                  >
+                    <SkiaLinearGradient
+                      start={vec(0, wordY)}
+                      end={vec(0, wordY + 40)}
+                      colors={word.matched ? ['#00d9ff', '#00a8cc'] : isPartialMatch ? ['#ffd700', '#ffa500'] : ['#ffffff', '#f0f0f0']}
                     />
-                    
-                    {/* Word background with gradient */}
+                  </RoundedRect>
+
+                  {/* Shimmer overlay for falling words */}
+                  {!word.matched && (
                     <RoundedRect
                       x={word.x}
                       y={wordY}
@@ -411,177 +449,164 @@ const WordRainGame = () => {
                       r={20}
                     >
                       <SkiaLinearGradient
-                        start={vec(0, wordY)}
-                        end={vec(0, wordY + 40)}
-                        colors={word.matched ? ['#00d9ff', '#00a8cc'] : isPartialMatch ? ['#ffd700', '#ffa500'] : ['#ffffff', '#f0f0f0']}
+                        start={vec(word.x - 20 + shimmerPos * (word.text.length * 14 + 52), wordY)}
+                        end={vec(word.x + 20 + shimmerPos * (word.text.length * 14 + 52), wordY)}
+                        colors={['transparent', '#00d9ff50', 'transparent']}
                       />
                     </RoundedRect>
-                    
-                    {/* Shimmer overlay for falling words */}
-                    {!word.matched && (
-                      <RoundedRect
-                        x={word.x}
-                        y={wordY}
-                        width={word.text.length * 14 + 32}
-                        height={40}
-                        r={20}
-                      >
-                        <SkiaLinearGradient
-                          start={vec(word.x - 20 + shimmerPos * (word.text.length * 14 + 52), wordY)}
-                          end={vec(word.x + 20 + shimmerPos * (word.text.length * 14 + 52), wordY)}
-                          colors={['transparent', '#00d9ff50', 'transparent']}
-                        />
-                      </RoundedRect>
-                    )}
-                    
-                    {/* Word border */}
-                    <RoundedRect
-                      x={word.x + 1}
-                      y={wordY + 1}
-                      width={word.text.length * 14 + 30}
-                      height={38}
-                      r={19}
-                      color="transparent"
-                      style="stroke"
-                      strokeWidth={2}
-                    >
-                      <SkiaLinearGradient
-                        start={vec(0, wordY)}
-                        end={vec(0, wordY + 40)}
-                        colors={isPartialMatch ? ['#ffd700', '#ff8c00'] : word.matched ? ['#00d9ff', '#00a8cc'] : ['#00d9ff', '#9b59b6']}
-                      />
-                    </RoundedRect>
-                    
-                    {/* Word text - render full text first, then highlighted portion on top */}
+                  )}
+
+                  {/* Word border */}
+                  <RoundedRect
+                    x={word.x + 1}
+                    y={wordY + 1}
+                    width={word.text.length * 14 + 30}
+                    height={38}
+                    r={19}
+                    color="transparent"
+                    style="stroke"
+                    strokeWidth={2}
+                  >
+                    <SkiaLinearGradient
+                      start={vec(0, wordY)}
+                      end={vec(0, wordY + 40)}
+                      colors={isPartialMatch ? ['#ffd700', '#ff8c00'] : word.matched ? ['#00d9ff', '#00a8cc'] : ['#00d9ff', '#9b59b6']}
+                    />
+                  </RoundedRect>
+
+                  {/* Word text - render full text first, then highlighted portion on top */}
+                  <SkiaText
+                    x={word.x + 16}
+                    y={wordY + 28}
+                    text={word.text}
+                    color={word.matched ? '#ffffff' : '#1a0033'}
+                    font={font}
+                  />
+
+                  {/* Render matched portion on top with highlight color */}
+                  {!word.matched && isPartialMatch && (
                     <SkiaText
                       x={word.x + 16}
                       y={wordY + 28}
-                      text={word.text}
-                      color={word.matched ? '#ffffff' : '#1a0033'}
+                      text={word.text.substring(0, matchedLength)}
+                      color="#ff6b00"
                       font={font}
                     />
-                    
-                    {/* Render matched portion on top with highlight color */}
-                    {!word.matched && isPartialMatch && (
-                      <SkiaText
-                        x={word.x + 16}
-                        y={wordY + 28}
-                        text={word.text.substring(0, matchedLength)}
-                        color="#ff6b00"
-                        font={font}
+                  )}
+
+                  {/* Trail effect for falling words */}
+                  {!word.matched && wordY > 20 && (
+                    <>
+                      <Circle
+                        cx={word.x + (word.text.length * 7)}
+                        cy={wordY - 10}
+                        r={2}
+                        color="#00d9ff"
+                        opacity={0.4}
                       />
-                    )}
-                    
-                    {/* Trail effect for falling words */}
-                    {!word.matched && wordY > 20 && (
-                      <>
-                        <Circle
-                          cx={word.x + (word.text.length * 7)}
-                          cy={wordY - 10}
-                          r={2}
-                          color="#00d9ff"
-                          opacity={0.4}
-                        />
-                        <Circle
-                          cx={word.x + (word.text.length * 7)}
-                          cy={wordY - 20}
-                          r={1.5}
-                          color="#9b59b6"
-                          opacity={0.3}
-                        />
-                      </>
-                    )}
-                  </Group>
-                );
-              })}
-            </Canvas>
-          </ThemedView>
+                      <Circle
+                        cx={word.x + (word.text.length * 7)}
+                        cy={wordY - 20}
+                        r={1.5}
+                        color="#9b59b6"
+                        opacity={0.3}
+                      />
+                    </>
+                  )}
+                </Group>
+              );
+            })}
+          </Canvas>
+        </ThemedView>
 
-          {/* Input Area */}
-          {gameStarted && !gameOver && (
-            <LinearGradient
-              colors={['#2d1b4e', '#3d2b5f', '#4a3870']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.inputContainer}
-            >
-              <TextInput
-                ref={inputRef}
-                style={[styles.input, { color: '#ffffff', borderColor: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingRight: currentInput ? 50 : 20 }]}
-                value={currentInput}
-                onChangeText={setCurrentInput}
-                placeholder="Type the word..."
-                placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                autoCapitalize="characters"
-                autoCorrect={false}
-                autoComplete="off"
-                spellCheck={false}
-                keyboardType="visible-password"
-                autoFocus
-              />
-              {currentInput.length > 0 && (
-                <Pressable
-                  style={[styles.clearButton, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}
-                  onPress={() => {
-                    setCurrentInput('');
-                    inputRef.current?.focus();
-                  }}
-                >
-                  <ThemedText style={styles.clearButtonText}>×</ThemedText>
-                </Pressable>
-              )}
-            </LinearGradient>
-          )}
-
-      {/* Start/Game Over Screen */}
-      {(!gameStarted || gameOver) && (
-        <ThemedView style={styles.overlay}>
-          <ThemedView style={[styles.menuContainer, { backgroundColor: backgroundColor }]}>
-            {gameOver ? (
-              <>
-                <ThemedText type="title" style={styles.gameOverText}>
-                  Game Over!
-                </ThemedText>
-                <ThemedText type="subtitle" style={styles.finalScore}>
-                  Final Score: {score}
-                </ThemedText>
-              </>
-            ) : (
-              <>
-                <ThemedText type="title" style={styles.titleText}>
-                  Word Rain
-                </ThemedText>
-                <ThemedText style={styles.instructions}>
-                  Type the falling words before they reach the bottom!
-                  {'\n\n'}
-                  Miss 3 words and it's game over.
-                </ThemedText>
-              </>
-            )}
-            
-            <Pressable
-              style={[styles.button, { backgroundColor: 'red' }]}
-              onPress={startGame}
-            >
-              <ThemedText type="defaultSemiBold" 
-              // style={styles.buttonText}
+        {/* Input Area */}
+        {gameStarted && !gameOver && (
+          <LinearGradient
+            colors={['#2d1b4e', '#3d2b5f', '#4a3870']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.inputContainer}
+          >
+            <TextInput
+              ref={inputRef}
+              style={[styles.input, { color: '#ffffff', borderColor: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingRight: currentInput ? 50 : 20 }]}
+              value={currentInput}
+              onChangeText={setCurrentInput}
+              placeholder="Type the word..."
+              placeholderTextColor="rgba(255, 255, 255, 0.7)"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoComplete="off"
+              spellCheck={false}
+              keyboardType="visible-password"
+              autoFocus
+            />
+            {currentInput.length > 0 && (
+              <Pressable
+                style={[styles.clearButton, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}
+                onPress={() => {
+                  setCurrentInput('');
+                  inputRef.current?.focus();
+                }}
               >
-                {gameOver ? 'Play Again' : 'Start Game'}
-              </ThemedText>
-            </Pressable>
+                <ThemedText style={styles.clearButtonText}>×</ThemedText>
+              </Pressable>
+            )}
+          </LinearGradient>
+        )}
 
-            <Pressable
-              style={[styles.button, styles.backButton]}
-              onPress={() => router.back()}
-            >
-              <ThemedText type="link">Back to Home</ThemedText>
-            </Pressable>
+        {/* Countdown or Game Over Screen */}
+        {/* {(showCountdown && !gameOver) && (
+          <ThemedView style={styles.overlay}>
+            <ThemedView style={[styles.countdownContainer, { backgroundColor: 'transparent' }]}>
+              <Text style={styles.countdownText}>
+                {countdown}
+              </Text>
+              <Text style={styles.countdownLabel}>
+                GET READY!
+              </Text>
+            </ThemedView>
           </ThemedView>
-        </ThemedView>
-      )}
-        </ThemedView>
-      </KeyboardAvoidingView>
-    </View>
+        )} */}
+
+        {/* Game Over Screen */}
+        {gameOver && (
+          <ThemedView style={styles.overlay}>
+            <ThemedView style={[styles.menuContainer, { backgroundColor: backgroundColor }]}>
+              <ThemedText type="title" style={styles.gameOverText}>
+                Game Over!
+              </ThemedText>
+              <ThemedText type="subtitle" style={styles.finalScore}>
+                Final Score: {score}
+              </ThemedText>
+
+              <Pressable
+                style={styles.playAgainButton}
+                onPress={startGame}
+              >
+                <LinearGradient
+                  colors={['#00ff87', '#00d4ff']}
+                  style={styles.playAgainGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.playAgainText}>
+                    ▶ PLAY AGAIN
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                style={[styles.button, styles.backButton]}
+                onPress={() => router.back()}
+              >
+                <ThemedText type="link">Back to Home</ThemedText>
+              </Pressable>
+            </ThemedView>
+          </ThemedView>
+        )}
+      </ThemedView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -591,21 +616,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-    // paddingTop: Platform.OS === 'ios' ? 60 : 40,
-  },
-  statContainer: {
-    backgroundColor: 'transparent',
-  },
-  missedText: {
-    fontSize: 16,
-  },
   gameArea: {
     flex: 1,
     position: 'relative',
+  },
+  floatingText: {
+    position: 'absolute',
+    zIndex: 10,
+    color: '#00ff87',
+    fontSize: 36,
+    fontWeight: 'bold',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  missedText: {
+    right: 20,
+    fontSize: 24,
   },
   keyboardView: {
     backgroundColor: 'transparent',
@@ -652,6 +679,36 @@ const styles = StyleSheet.create({
     width: '85%',
     maxWidth: 400,
   },
+  countdownContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 60,
+    overflow: 'visible',
+  },
+  countdownText: {
+    fontSize: 120,
+    fontWeight: '900',
+    color: '#00ff87',
+    textShadowColor: 'rgba(0, 255, 135, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+    lineHeight: 140,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  countdownLabel: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 20,
+    letterSpacing: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+    lineHeight: 40,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
   titleText: {
     marginBottom: 20,
     textAlign: 'center',
@@ -659,7 +716,7 @@ const styles = StyleSheet.create({
   gameOverText: {
     marginBottom: 20,
     textAlign: 'center',
-    color: '#ff4444',
+    color: '#00d4ff',
   },
   finalScore: {
     marginBottom: 30,
@@ -678,6 +735,28 @@ const styles = StyleSheet.create({
     marginTop: 12,
     minWidth: 200,
     alignItems: 'center',
+  },
+  playAgainButton: {
+    width: '100%',
+    borderRadius: 30,
+    overflow: 'hidden',
+    marginTop: 12,
+    shadowColor: '#00ff87',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  playAgainGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  playAgainText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#000',
+    letterSpacing: 2,
   },
   backButton: {
     backgroundColor: 'transparent',
