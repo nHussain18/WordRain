@@ -1,5 +1,6 @@
-import { ThemedText } from '@/components/themed-text';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import Textc from '@/components/Textc';
+import { Colors } from '@/constants/theme';
+import { useGameStore } from '@/store/game-store';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -7,15 +8,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 const HomeScreen = () => {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const { highScore, accuracy } = useGameStore();
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={isDark 
-          ? ['#1a0033', '#0f002e', '#1a0066', '#2d0099'] 
-          : ['#4a00e0', '#6a00f4', '#8e2de2', '#4a00e0']}
+        colors={[Colors.darkModePurple1, Colors.darkModePurple2, Colors.darkModePurple3, Colors.darkModePurple4]}
         style={styles.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -31,20 +29,20 @@ const HomeScreen = () => {
         <View style={styles.content}>
           {/* Title Section */}
           <View style={styles.titleSection}>
-            <Text style={styles.gameTitle}>WORD</Text>
-            <Text style={[styles.gameTitle, styles.rainTitle]}>RAIN</Text>
+            <Textc size={72} bold style={styles.gameTitle}>WORD</Textc>
+            <Textc size={72} bold style={{ ...styles.gameTitle, ...styles.rainTitle }}>RAIN</Textc>
             <Text style={styles.subtitle}>⚡ TYPE FAST OR LOSE ⚡</Text>
           </View>
 
           {/* Stats Cards */}
           <View style={styles.statsContainer}>
             <BlurView intensity={30} style={styles.statCard}>
-              <ThemedText style={styles.statValue}>0</ThemedText>
-              <ThemedText style={styles.statLabel}>HIGH SCORE</ThemedText>
+              <Textc bold size={32} color={Colors.neonGreen}>{highScore}</Textc>
+              <Textc bold size={12} color={Colors.white}>HIGH SCORE</Textc>
             </BlurView>
             <BlurView intensity={30} style={styles.statCard}>
-              <ThemedText style={styles.statValue}>0</ThemedText>
-              <ThemedText style={styles.statLabel}>GAMES PLAYED</ThemedText>
+              <Textc bold size={32} color={Colors.neonGreen}>{accuracy}%</Textc>
+              <Textc bold size={12} color={Colors.white}>ACCURACY</Textc>
             </BlurView>
           </View>
 
@@ -54,26 +52,26 @@ const HomeScreen = () => {
             onPress={() => router.push('/game')}
           >
             <LinearGradient
-              colors={['#00ff87', '#00d4ff']}
+              colors={[Colors.neonGreen, Colors.cyan]}
               style={styles.playButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <ThemedText style={styles.playButtonText}>▶ PLAY NOW</ThemedText>
+              <Textc bold size={24} color={Colors.black} style={styles.playButtonText}>▶ PLAY NOW</Textc>
             </LinearGradient>
           </Pressable>
 
           {/* Quick Info */}
           <BlurView intensity={20} style={styles.infoBox}>
-            <ThemedText style={styles.infoTitle}>HOW TO PLAY</ThemedText>
+            <Textc bold size={16} color={Colors.neonGreen} style={styles.infoTitle}>HOW TO PLAY</Textc>
             <View style={styles.infoRow}>
-              <ThemedText style={styles.infoText}>⌨️  Type falling words</ThemedText>
+              <Textc semiBold size={14} color={Colors.white}>⌨️  Type falling words</Textc>
             </View>
             <View style={styles.infoRow}>
-              <ThemedText style={styles.infoText}>⚡  Press Enter to submit</ThemedText>
+              <Textc semiBold size={14} color={Colors.white}>⚡  Match before they hit bottom</Textc>
             </View>
             <View style={styles.infoRow}>
-              <ThemedText style={styles.infoText}>💀  Don't let 3 words drop</ThemedText>
+              <Textc semiBold size={14} color={Colors.white}>💀  Don't let 3 words drop</Textc>
             </View>
           </BlurView>
         </View>
@@ -101,7 +99,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Colors.whiteAlpha10,
   },
   particle1: {
     top: '10%',
@@ -135,25 +133,23 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   gameTitle: {
-    fontSize: 72,
     fontWeight: '900',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 255, 135, 0.5)',
+    color: Colors.white,
+    textShadowColor: Colors.neonGreenShadow,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
     letterSpacing: 8,
     lineHeight: 80,
-    textAlign: 'center',
     includeFontPadding: false,
   },
   rainTitle: {
     marginTop: -15,
-    textShadowColor: 'rgba(0, 212, 255, 0.5)',
+    textShadowColor: Colors.cyanShadow,
   },
   subtitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#fff',
+    color: Colors.white,
     marginTop: 10,
     letterSpacing: 3,
     lineHeight: 24,
@@ -173,24 +169,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     borderRadius: 20,
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Colors.whiteAlpha10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: Colors.whiteAlpha20,
     overflow: 'hidden',
     minHeight: 100,
-  },
-  statValue: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#00ff87',
-    lineHeight: 38,
-  },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-    marginTop: 5,
-    letterSpacing: 1,
   },
   playButton: {
     width: '100%',
@@ -198,7 +181,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     borderRadius: 30,
     overflow: 'hidden',
-    shadowColor: '#00ff87',
+    shadowColor: Colors.neonGreen,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
     shadowRadius: 20,
@@ -209,9 +192,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   playButtonText: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#000',
     letterSpacing: 3,
   },
   infoBox: {
@@ -219,24 +199,16 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     padding: 25,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: Colors.blackAlpha30,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: Colors.whiteAlpha20,
     overflow: 'hidden',
   },
   infoTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#00ff87',
     marginBottom: 15,
     letterSpacing: 2,
   },
   infoRow: {
     marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#fff',
-    fontWeight: '600',
   },
 });

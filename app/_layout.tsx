@@ -1,20 +1,19 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [loaded] = useFonts({
+    NotoSansRegular: require("../assets/fonts/Nunito-Regular.ttf"),
+    NotoSansSemiBold: require("../assets/fonts/Nunito-SemiBold.ttf"),
+    NotoSansMedium: require("../assets/fonts/Nunito-Medium.ttf"),
+    NotoSansBold: require("../assets/fonts/Nunito-Bold.ttf"),
+  });
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="game" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Stack>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="game" options={{ headerShown: false }} />
+    </Stack>
   );
 }

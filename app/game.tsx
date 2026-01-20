@@ -1,13 +1,12 @@
+import Textc from '@/components/Textc';
+import { Colors } from '@/constants/theme';
+import { useGameStore } from '@/store/game-store';
 import { BlurMask, Canvas, Circle, Group, RoundedRect, LinearGradient as SkiaLinearGradient, Text as SkiaText, matchFont, vec } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { Dimensions, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -50,6 +49,16 @@ type Particle = {
 
 const WordRainGame = () => {
   const router = useRouter();
+  const {
+    highScore,
+    updateHighScore,
+    incrementGamesPlayed,
+    addWordMatched,
+    addWordSpawned,
+    resetCurrentGame,
+    wordsMatchedCount
+  } = useGameStore();
+
   const [words, setWords] = useState<FallingWord[]>([]);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [currentInput, setCurrentInput] = useState('');
@@ -57,6 +66,7 @@ const WordRainGame = () => {
   const [missedWords, setMissedWords] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [isNewHighScore, setIsNewHighScore] = useState(false);
   // const [countdown, setCountdown] = useState(3);
   // const [showCountdown, setShowCountdown] = useState(true);
   const [gameAreaHeight, setGameAreaHeight] = useState(SCREEN_HEIGHT - 200);
@@ -66,10 +76,6 @@ const WordRainGame = () => {
   const animationFrameRef = useRef<number | null>(null);
   const inputRef = useRef<TextInput>(null);
   const timeRef = useRef(Date.now());
-
-  const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  const tintColor = useThemeColor({}, 'tint');
   const INSETS = useSafeAreaInsets();
 
   const font = matchFont({
@@ -83,6 +89,7 @@ const WordRainGame = () => {
     setGameStarted(true); // Start immediately
     setGameOver(false);
     setScore(0);
+    setIsNewHighScore(false);
     setMissedWords(0);
     setWords([]);
     setParticles([]);
@@ -92,6 +99,10 @@ const WordRainGame = () => {
     nextWordId.current = 0;
     nextParticleId.current = 0;
     timeRef.current = Date.now();
+
+    // Reset current game stats and increment games played
+    resetCurrentGame();
+    incrementGamesPlayed();
 
     // Focus input after a short delay
     setTimeout(() => {
@@ -112,9 +123,15 @@ const WordRainGame = () => {
   //   }
   // }, [countdown, showCountdown]);
 
+  // Stats are now loaded automatically by Zustand persist middleware
+
   // Auto-start game on mount
   useEffect(() => {
-    startGame();
+    const timer = setTimeout(() => {
+      startGame();
+    }, 400); // Wait for navigation transition to complete
+
+    return () => clearTimeout(timer);
   }, []);
 
   const spawnWord = useCallback(() => {
@@ -132,8 +149,9 @@ const WordRainGame = () => {
       fallDuration: FALL_DURATION + Math.random() * 3000, //[6s - 9s]
     };
 
+    addWordSpawned();
     setWords(prev => [...prev, newWord]);
-  }, []);
+  }, [addWordSpawned]);
 
   const removeWord = useCallback((wordId: number, wasMatched: boolean) => {
     setWords(prev => prev.filter(word => word.id !== wordId));
@@ -162,7 +180,7 @@ const WordRainGame = () => {
 
   const createParticles = (x: number, y: number, particleCount: number) => {
     const newParticles: Particle[] = [];
-    const colors = ['#00d9ff', '#9b59b6', '#ffd700', '#00ffff', '#ff6b00'];
+    const colors = [Colors.cyan, Colors.purple, Colors.gold, Colors.aqua, Colors.orange];
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (Math.PI * 2 * i) / particleCount;
@@ -208,6 +226,7 @@ const WordRainGame = () => {
       );
       setScore(prev => prev + matchedWord.text.length * 10);
       setCurrentInput('');
+      addWordMatched();
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -309,8 +328,14 @@ const WordRainGame = () => {
       // Clear all words and particles when game ends
       setWords([]);
       setParticles([]);
+
+      // Check and update high score
+      if (score > highScore) {
+        updateHighScore(score);
+        setIsNewHighScore(true);
+      }
     }
-  }, [gameOver]);
+  }, [gameOver, score, highScore, updateHighScore]);
 
   return (
     <KeyboardAvoidingView
@@ -318,21 +343,28 @@ const WordRainGame = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-      <Text style={[styles.floatingText, { top: INSETS.top, left: 20 }]}>{score}</Text>
-      <Text
-        style={[styles.floatingText, styles.missedText, { top: INSETS.top }]}
-      >
-        {Array.from({ length: 3 }, (_, i) => {
-          const livesMissed = missedWords;
-          const livesRemaining = 3 - livesMissed;
-          return i < livesRemaining ? '❤️' : '🖤';
-        }).join('')}
-      </Text>
-      <ThemedView style={styles.container}>
+      <View style={[styles.floatingContainer, { top: INSETS.top }]}>
+        <View style={styles.scoreView}>
+          <Textc semiBold size={11} color={Colors.whiteAlpha70} shadow>SCORE</Textc>
+          <Textc size={38} lineHeight={42} color={Colors.aqua + 'aa'} bold shadow>{score}</Textc>
+        </View>
+
+        <View style={[styles.scoreView, { alignItems: 'flex-end' }]}>
+          <Text style={styles.livesText}>
+            {Array.from({ length: 3 }, (_, i) => {
+              const livesMissed = missedWords;
+              const livesRemaining = 3 - livesMissed;
+              return i < livesRemaining ? '❤️' : '🖤';
+            }).join('')}
+          </Text>
+          <Textc semiBold size={12} lineHeight={14} color={Colors.whiteAlpha70} shadow>{wordsMatchedCount} WORDS</Textc>
+        </View>
+      </View>
+      <View style={styles.container}>
 
 
         {/* Game Area with Skia Canvas */}
-        <ThemedView
+        <View
           style={styles.gameArea}
           onLayout={(event) => {
             const { height } = event.nativeEvent.layout;
@@ -350,7 +382,7 @@ const WordRainGame = () => {
               <SkiaLinearGradient
                 start={vec(0, 0)}
                 end={vec(0, gameAreaHeight)}
-                colors={['#1a0033', '#2d1349', '#1e3a5f', '#2a5470']}
+                colors={[Colors.deepPurple, Colors.mediumPurple, Colors.darkBlue, Colors.tealBlue]}
               />
             </RoundedRect>
 
@@ -392,7 +424,7 @@ const WordRainGame = () => {
                       width={word.text.length * 14 + 40}
                       height={50}
                       r={25}
-                      color="#00ffff"
+                      color={Colors.aqua}
                       opacity={0.7}
                     >
                       <BlurMask blur={12} style="normal" />
@@ -407,7 +439,7 @@ const WordRainGame = () => {
                       width={word.text.length * 14 + 38}
                       height={46}
                       r={23}
-                      color="#ffd700"
+                      color={Colors.gold}
                       opacity={0.5}
                     >
                       <BlurMask blur={10} style="normal" />
@@ -421,7 +453,7 @@ const WordRainGame = () => {
                     width={word.text.length * 14 + 32}
                     height={40}
                     r={20}
-                    color="#00000080"
+                    color={Colors.blackAlpha80}
                   />
 
                   {/* Word background with gradient */}
@@ -435,7 +467,7 @@ const WordRainGame = () => {
                     <SkiaLinearGradient
                       start={vec(0, wordY)}
                       end={vec(0, wordY + 40)}
-                      colors={word.matched ? ['#00d9ff', '#00a8cc'] : isPartialMatch ? ['#ffd700', '#ffa500'] : ['#ffffff', '#f0f0f0']}
+                      colors={word.matched ? [Colors.cyan, Colors.darkCyan] : isPartialMatch ? [Colors.gold, Colors.darkOrange] : [Colors.white, Colors.lightGray]}
                     />
                   </RoundedRect>
 
@@ -451,7 +483,7 @@ const WordRainGame = () => {
                       <SkiaLinearGradient
                         start={vec(word.x - 20 + shimmerPos * (word.text.length * 14 + 52), wordY)}
                         end={vec(word.x + 20 + shimmerPos * (word.text.length * 14 + 52), wordY)}
-                        colors={['transparent', '#00d9ff50', 'transparent']}
+                        colors={[Colors.transparent, Colors.cyanAlpha50, Colors.transparent]}
                       />
                     </RoundedRect>
                   )}
@@ -470,7 +502,7 @@ const WordRainGame = () => {
                     <SkiaLinearGradient
                       start={vec(0, wordY)}
                       end={vec(0, wordY + 40)}
-                      colors={isPartialMatch ? ['#ffd700', '#ff8c00'] : word.matched ? ['#00d9ff', '#00a8cc'] : ['#00d9ff', '#9b59b6']}
+                      colors={isPartialMatch ? [Colors.gold, Colors.deepOrange] : word.matched ? [Colors.cyan, Colors.darkCyan] : [Colors.cyan, Colors.purple]}
                     />
                   </RoundedRect>
 
@@ -479,7 +511,7 @@ const WordRainGame = () => {
                     x={word.x + 16}
                     y={wordY + 28}
                     text={word.text}
-                    color={word.matched ? '#ffffff' : '#1a0033'}
+                    color={word.matched ? Colors.white : Colors.deepPurple}
                     font={font}
                   />
 
@@ -489,7 +521,7 @@ const WordRainGame = () => {
                       x={word.x + 16}
                       y={wordY + 28}
                       text={word.text.substring(0, matchedLength)}
-                      color="#ff6b00"
+                      color={Colors.orange}
                       font={font}
                     />
                   )}
@@ -501,14 +533,14 @@ const WordRainGame = () => {
                         cx={word.x + (word.text.length * 7)}
                         cy={wordY - 10}
                         r={2}
-                        color="#00d9ff"
+                        color={Colors.cyan}
                         opacity={0.4}
                       />
                       <Circle
                         cx={word.x + (word.text.length * 7)}
                         cy={wordY - 20}
                         r={1.5}
-                        color="#9b59b6"
+                        color={Colors.purple}
                         opacity={0.3}
                       />
                     </>
@@ -517,23 +549,23 @@ const WordRainGame = () => {
               );
             })}
           </Canvas>
-        </ThemedView>
+        </View>
 
         {/* Input Area */}
         {gameStarted && !gameOver && (
           <LinearGradient
-            colors={['#2d1b4e', '#3d2b5f', '#4a3870']}
+            colors={[Colors.inputPurple1, Colors.inputPurple2, Colors.inputPurple3]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.inputContainer}
           >
             <TextInput
               ref={inputRef}
-              style={[styles.input, { color: '#ffffff', borderColor: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.2)', paddingRight: currentInput ? 50 : 20 }]}
+              style={[styles.input, { color: Colors.white, borderColor: Colors.white, backgroundColor: Colors.whiteAlpha20, paddingRight: currentInput ? 50 : 20 }]}
               value={currentInput}
               onChangeText={setCurrentInput}
               placeholder="Type the word..."
-              placeholderTextColor="rgba(255, 255, 255, 0.7)"
+              placeholderTextColor={Colors.whiteAlpha70}
               autoCapitalize="characters"
               autoCorrect={false}
               autoComplete="off"
@@ -543,13 +575,13 @@ const WordRainGame = () => {
             />
             {currentInput.length > 0 && (
               <Pressable
-                style={[styles.clearButton, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}
+                style={[styles.clearButton, { backgroundColor: Colors.whiteAlpha30 }]}
                 onPress={() => {
                   setCurrentInput('');
                   inputRef.current?.focus();
                 }}
               >
-                <ThemedText style={styles.clearButtonText}>×</ThemedText>
+                <Textc color={Colors.white} size={24} bold>×</Textc>
               </Pressable>
             )}
           </LinearGradient>
@@ -571,28 +603,36 @@ const WordRainGame = () => {
 
         {/* Game Over Screen */}
         {gameOver && (
-          <ThemedView style={styles.overlay}>
-            <ThemedView style={[styles.menuContainer, { backgroundColor: backgroundColor }]}>
-              <ThemedText type="title" style={styles.gameOverText}>
+          <View style={styles.overlay}>
+            <View style={styles.menuContainer}>
+              <Textc bold size={32} style={styles.gameOverText}>
                 Game Over!
-              </ThemedText>
-              <ThemedText type="subtitle" style={styles.finalScore}>
-                Final Score: {score}
-              </ThemedText>
+              </Textc>
+              {isNewHighScore && (
+                <Textc bold size={18} style={styles.newHighScoreText}>
+                  🎉 NEW HIGH SCORE! 🎉
+                </Textc>
+              )}
+              <Textc bold size={24} style={styles.finalScore}>
+                Score: {score}
+              </Textc>
+              <Textc size={16} style={styles.statsText}>
+                Words Matched: {wordsMatchedCount}
+              </Textc>
 
               <Pressable
                 style={styles.playAgainButton}
                 onPress={startGame}
               >
                 <LinearGradient
-                  colors={['#00ff87', '#00d4ff']}
+                  colors={[Colors.neonGreen, Colors.cyan]}
                   style={styles.playAgainGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                 >
-                  <Text style={styles.playAgainText}>
+                  <Textc size={20} bold style={{ letterSpacing: 2 }}>
                     ▶ PLAY AGAIN
-                  </Text>
+                  </Textc>
                 </LinearGradient>
               </Pressable>
 
@@ -600,12 +640,12 @@ const WordRainGame = () => {
                 style={[styles.button, styles.backButton]}
                 onPress={() => router.back()}
               >
-                <ThemedText type="link">Back to Home</ThemedText>
+                <Textc size={16} color={Colors.cyan}>Back to Home</Textc>
               </Pressable>
-            </ThemedView>
-          </ThemedView>
+            </View>
+          </View>
         )}
-      </ThemedView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -615,31 +655,34 @@ export default WordRainGame;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   gameArea: {
     flex: 1,
     position: 'relative',
   },
-  floatingText: {
+  floatingContainer: {
     position: 'absolute',
     zIndex: 10,
-    color: '#00ff87',
-    fontSize: 36,
+    left: 20,
+    right: 20,
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  },
+  scoreView: {
+  },
+  livesText: {
+    color: Colors.neonGreen,
+    fontSize: 24,
     fontWeight: 'bold',
-    textShadowColor: '#000000',
+    textShadowColor: Colors.black,
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
-  },
-  missedText: {
-    right: 20,
-    fontSize: 24,
-  },
-  keyboardView: {
-    backgroundColor: 'transparent',
+    marginBottom: 2,
   },
   inputContainer: {
     padding: 16,
-    backgroundColor: 'transparent',
+    backgroundColor: Colors.transparent,
     position: 'relative',
   },
   input: {
@@ -661,16 +704,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   clearButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontSize: 24,
     fontWeight: '600',
     lineHeight: 24,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: Colors.cyan,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: Colors.blackAlpha70,
   },
   menuContainer: {
     padding: 32,
@@ -678,6 +725,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '85%',
     maxWidth: 400,
+    backgroundColor: Colors.white,
   },
   countdownContainer: {
     alignItems: 'center',
@@ -688,7 +736,7 @@ const styles = StyleSheet.create({
   countdownText: {
     fontSize: 120,
     fontWeight: '900',
-    color: '#00ff87',
+    color: Colors.neonGreen,
     textShadowColor: 'rgba(0, 255, 135, 0.8)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 30,
@@ -699,7 +747,7 @@ const styles = StyleSheet.create({
   countdownLabel: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#ffffff',
+    color: Colors.white,
     marginTop: 20,
     letterSpacing: 8,
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
@@ -709,24 +757,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
-  titleText: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
   gameOverText: {
-    marginBottom: 20,
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 12,
     textAlign: 'center',
-    color: '#00d4ff',
+    color: Colors.cyan,
+  },
+  newHighScoreText: {
+    color: Colors.neonGreen,
+    marginBottom: 16,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 255, 135, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
   finalScore: {
-    marginBottom: 30,
+    marginBottom: 8,
     textAlign: 'center',
   },
-  instructions: {
-    textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 24,
-    opacity: 0.8,
+  statsText: {
+    marginBottom: 2,
   },
   button: {
     paddingHorizontal: 32,
@@ -741,7 +792,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     overflow: 'hidden',
     marginTop: 12,
-    shadowColor: '#00ff87',
+    shadowColor: Colors.neonGreen,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
     shadowRadius: 20,
@@ -752,17 +803,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     alignItems: 'center',
   },
-  playAgainText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#000',
-    letterSpacing: 2,
-  },
   backButton: {
     backgroundColor: 'transparent',
-  },
-  buttonText: {
-    color: '#222',
-    fontSize: 18,
   },
 });
